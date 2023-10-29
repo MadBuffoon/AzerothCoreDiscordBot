@@ -13,8 +13,8 @@ module.exports = {
         soapHostname: "127.0.0.1",
         soapAuth: "username:passwd",
         
-        serverURL: "MadClownWorld.com",
-
-        botChannelID: "Channel to post msgs"
+        serverURL: "Server.com",
+		
+		botChannelID: "Channel to post msgs"
 
 }

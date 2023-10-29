@@ -1,7 +1,18 @@
+const fs = require('fs');
+const logStream = fs.createWriteStream('error.log', { flags: 'a' });
+
+process.on('unhandledRejection', (reason, promise) => {
+	logStream.write(`Unhandled Promise Rejection: ${reason}\n`);
+});
+
+process.on('uncaughtException', (error) => {
+	logStream.write(`Uncaught Exception: ${error.stack}\n`);
+});
+
 const Discord = require("discord.js")
-const fs = require("fs")
 const config = require("./config.js")
 const client = new Discord.Client();
+const tool = require("./Funtions.js")
 
 require('./databasesql.js')(client)
 const connection = require('./databasesql.js')
@@ -24,14 +35,26 @@ for (const file of commandFiles) {
 
 
 // Startup
-client.on('ready', () => {
-    console.log("----------")
+client.once('ready', () => {
+	console.log("----------");
 	console.log(`Logged in as ${client.user.tag}!`);
-    console.log("----------")
-	client.user.setActivity(config.statusMessage, { type: 'PLAYING' });
-	setInterval(() => {
-		client.user.setActivity(config.statusMessage, { type: 'PLAYING' });
-	  }, 360000);
+	console.log("----------");
+
+	const updatePresence = async () => {
+		let overallStatus = await tool.ServerStatus();
+		let uptime = await tool.ServerUpTime(connection);
+		let onlineCount = await tool.getOnlinePlayersCount(connection);
+
+		const activityMessage = `${overallStatus} \n| ${config.statusMessage} \n| Online: ${onlineCount} \n| Uptime: ${uptime}`;
+
+		client.user.setActivity(activityMessage, { type: 'PLAYING' });
+	};
+
+	// Initially set the presence
+	updatePresence();
+
+	// Set up an interval to update the presence regularly
+	setInterval(updatePresence, 10000);
 });
 
 // Command Handler
