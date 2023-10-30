@@ -65,13 +65,26 @@ function checkServerStatus() {
         });
     });
 }
+
+client.on('ready', () => {
+    console.log(`Logged in as ${client.user.tag}`);
+    // Your other code here
+});
+client.login(config.token);
 function sendStatusMessage(message) {
+
     // Send the status message to the specified channel
     const botChannel = client.channels.cache.get(config.botChannelID);
     if (botChannel) {
-        botChannel.send(message);
+        botChannel.send(message)
+            .then(() => {
+                console.log(`Message sent: ${message}`);
+            })
+            .catch((error) => {
+                console.error(`Error sending message: ${error}`);
+            });
     } else {
-        console.error('Bot channel not found.');
+        console.error(`Bot channel not found: ${config.botChannelID}`);
     }
 }
 
