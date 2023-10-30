@@ -43,7 +43,7 @@ function checkServerStatus() {
         tcpClient.connect(port, host, () => {
             // Connected successfully, the server is available
             if (previousServerStatus !== true) {
-                sendStatusMessage('Server is back up.');
+                sendStatusMessage('Server is Up.');
                 previousServerStatus = true;
             }
             tcpClient.end(); // Close the connection
@@ -53,7 +53,7 @@ function checkServerStatus() {
         tcpClient.on('error', (err) => {
             // Some kind of error prevents us, we'll assume it's inaccessible
             if (previousServerStatus !== false) {
-                sendStatusMessage('Server is down.');
+                sendStatusMessage('Server is Down.');
                 previousServerStatus = false;
             }
             resolve('Server Down');
