@@ -1,6 +1,8 @@
 ﻿const Discord = require("discord.js")
 const config = require("./config.js")
 const client = new Discord.Client();
+const os = require('os');
+const osUtils = require('os-utils');
 let previousServerStatus = true;
 async function getOnlinePlayersCount(connection) {
     return new Promise((resolve, reject) => {
@@ -120,10 +122,25 @@ function getServerUptime(connection) {
         });
     });
 }
+function getSystemUsage() {
+    return new Promise((resolve, reject) => {
+        osUtils.cpuUsage(function (cpuUsage) {
+            const cpuUsagePercentage = (cpuUsage * 100).toFixed(1);
+            const totalMemory = os.totalmem();
+            const freeMemory = os.freemem();
+            const usedMemory = totalMemory - freeMemory;
+            const memoryUsagePercentage = ((usedMemory / totalMemory) * 100).toFixed(1);
 
+            const systemUsageString = `CPU: ${cpuUsagePercentage}%\nRAM: ${memoryUsagePercentage}%`;
+
+            resolve(systemUsageString);
+        });
+    });
+}
 module.exports = {
     getOnlinePlayersCount,
     ServerStatus,
     ServerUpTime,
+    getSystemUsage,
     
 }
