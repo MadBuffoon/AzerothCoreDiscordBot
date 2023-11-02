@@ -3,7 +3,9 @@ const config = require("./config.js")
 const client = new Discord.Client();
 const os = require('os');
 const osUtils = require('os-utils');
-let previousServerStatus = true;
+const fs = require('fs');
+const net = require('net');
+
 async function getOnlinePlayersCount(connection) {
     return new Promise((resolve, reject) => {
         connection.query('USE acore_characters');
@@ -19,8 +21,6 @@ async function getOnlinePlayersCount(connection) {
     });
 }
 
-const net = require('net');
-const connection = require("./databasesql"); // Make sure to import 'net'
 async function ServerStatus() {
     try {
         const status = await checkServerStatus();
@@ -44,20 +44,12 @@ function checkServerStatus() {
 
         tcpClient.connect(port, host, () => {
             // Connected successfully, the server is available
-            if (previousServerStatus !== true) {
-                sendStatusMessage('Server is Up.');
-                previousServerStatus = true;
-            }
             tcpClient.end(); // Close the connection
             resolve('Server Up');
         });
 
         tcpClient.on('error', (err) => {
             // Some kind of error prevents us, we'll assume it's inaccessible
-            if (previousServerStatus !== false) {
-                sendStatusMessage('Server is Down.');
-                previousServerStatus = false;
-            }
             resolve('Server Down');
         });
 
@@ -67,30 +59,6 @@ function checkServerStatus() {
         });
     });
 }
-
-client.on('ready', () => {
-    console.log(`Logged in as ${client.user.tag}`);
-    // Your other code here
-});
-client.login(config.token);
-function sendStatusMessage(message) {
-
-    // Send the status message to the specified channel
-    const botChannel = client.channels.cache.get(config.botChannelID);
-    if (botChannel) {
-        botChannel.send(message)
-            .then(() => {
-                console.log(`Message sent: ${message}`);
-            })
-            .catch((error) => {
-                console.error(`Error sending message: ${error}`);
-            });
-    } else {
-        console.error(`Bot channel not found: ${config.botChannelID}`);
-    }
-}
-
-
 async function ServerUpTime(connection) {
     try {
         return await getServerUptime(connection);
@@ -117,7 +85,7 @@ function getServerUptime(connection) {
 
                 resolve(formattedUptime);
             } else {
-                resolve('No uptime data found.');
+                resolve('0');
             }
         });
     });
@@ -137,10 +105,132 @@ function getSystemUsage() {
         });
     });
 }
+
+
+
+
+
+// Function to read the last message ID from the JSON file
+function readLastMessageID() {
+    if (fs.existsSync('SaveData.json')) {
+        try {
+            const data = fs.readFileSync('SaveData.json');
+            return JSON.parse(data);
+        } catch (error) {
+            console.error(`Error reading last message ID: ${error}`);
+            return null;
+        }
+    } else {
+        return null;
+    }
+}
+
+
+// Function to save the last message ID to the JSON file
+function saveLastMessageID(messageID) {
+    try {
+        fs.writeFileSync('SaveData.json', JSON.stringify({ lastSentMessageID: messageID }));
+    } catch (error) {
+        console.error(`Error saving last message ID: ${error}`);
+    }
+}
+
+const savedData = readLastMessageID();
+let lastSentMessageID = savedData ? savedData.lastSentMessageID : null;
+
+
+client.on('ready', () => {
+    console.log(`Logged in as ${client.user.tag}`);
+    // Your other code here
+});
+client.login(config.token);
+
+let lastStatus = 'Server Up';
+async function sendStatusMessage(connection) {
+    const botChannel = client.channels.cache.get(config.botChannelID);
+    let overallStatus = await ServerStatus();
+    let uptime = await ServerUpTime(connection);
+    let onlineCount = await getOnlinePlayersCount(connection);
+    let SystemUsage = await getSystemUsage();
+
+    if (overallStatus !== lastStatus) {
+        lastStatus = overallStatus; // Update lastStatus
+
+        if (botChannel) {
+            if (overallStatus === 'Server Down') {
+                // Delete the message and clear the saved data
+                if (lastSentMessageID) {
+                    botChannel.messages
+                        .fetch(lastSentMessageID)
+                        .then((message) => {
+                            message
+                                .delete()
+                                .then(() => {
+                                    lastSentMessageID = null; // Clear the message ID
+                                    saveLastMessageID(lastSentMessageID);
+                                    console.log('Status message deleted.');
+                                })
+                                .catch((error) => {
+                                    console.error(`Error deleting status message: ${error}`);
+                                });
+                        })
+                        .catch((error) => {
+                            console.error(`Error fetching message: ${error}`);
+                        });
+                }
+            } else {
+                const embed = new Discord.MessageEmbed()
+                    .setColor(config.color)
+                    .setTitle('Public Realm Info')
+                    .setDescription('')
+                    .addField('Status', overallStatus, true)
+                    .addField('Online', onlineCount, true)
+                    .addField('UpTime', uptime, true)
+                    .addField('System Usage', SystemUsage, true)
+                    .setTimestamp()
+                    .setFooter('Bot Status', client.user.displayAvatarURL());
+
+                if (lastSentMessageID) {
+                    botChannel.messages
+                        .fetch(lastSentMessageID)
+                        .then((message) => {
+                            message
+                                .edit(embed)
+                                .then(() => {
+                                    //console.log('Status message updated.');
+                                })
+                                .catch((error) => {
+                                    console.error(`Error updating status message: ${error}`);
+                                });
+                        })
+                        .catch((error) => {
+                            console.error(`Error fetching message: ${error}`);
+                        });
+                } else {
+                    botChannel.send(embed)
+                        .then((message) => {
+                            lastSentMessageID = message.id; // Save the message ID
+                            saveLastMessageID(lastSentMessageID);
+                            console.log('Status message sent.');
+                        })
+                        .catch((error) => {
+                            console.error(`Error sending status message: ${error}`);
+                        });
+                }
+            }
+        } else {
+            console.error(`Bot channel not found: ${config.botChannelID}`);
+        }
+    }
+}
+
+
+
 module.exports = {
     getOnlinePlayersCount,
     ServerStatus,
     ServerUpTime,
     getSystemUsage,
+    sendStatusMessage,
     
 }

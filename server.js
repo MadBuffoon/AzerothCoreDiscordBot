@@ -45,6 +45,7 @@ client.once('ready', () => {
 		let uptime = await tool.ServerUpTime(connection);
 		let onlineCount = await tool.getOnlinePlayersCount(connection);
 		let SystemUsage = await tool.getSystemUsage();
+		await tool.sendStatusMessage(connection);
 
 		const activityMessage = `${overallStatus} \n| ${config.statusMessage} \n| Online: ${onlineCount} \n| Uptime: ${uptime}\n| SystemUsage: ${SystemUsage}`;
 
