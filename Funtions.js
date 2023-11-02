@@ -5,6 +5,7 @@ const os = require('os');
 const osUtils = require('os-utils');
 const fs = require('fs');
 const net = require('net');
+const connection = require("./databasesql");
 
 async function getOnlinePlayersCount(connection) {
     return new Promise((resolve, reject) => {
@@ -20,6 +21,25 @@ async function getOnlinePlayersCount(connection) {
         });
     });
 }
+async function getOnlinePlayersList(connection) {
+    return new Promise((resolve, reject) => {
+        const onlinePlayers = [];
+        connection.query('USE acore_characters');
+        connection.query('SELECT name, level FROM characters WHERE online = 1', (error, results, fields) => {
+            if (error) {
+                console.error(error);
+                reject("An error occurred while fetching online players.");
+            } else {
+                results.forEach((row) => {
+                    const playerInfo = `${row.name} (${row.level})`;
+                    onlinePlayers.push(playerInfo);
+                });
+                resolve(onlinePlayers);
+            }
+        });
+    });
+}
+
 
 async function ServerStatus() {
     try {
@@ -79,11 +99,27 @@ function getServerUptime(connection) {
 
             if (results.length > 0) {
                 const uptimeInSeconds = results[0].uptime;
-                const hours = Math.floor(uptimeInSeconds / 3600);
+                const days = Math.floor(uptimeInSeconds / 86400);
+                const hours = Math.floor((uptimeInSeconds % 86400) / 3600);
                 const minutes = Math.floor((uptimeInSeconds % 3600) / 60);
-                const formattedUptime = `${hours}h ${minutes}m`;
+                const seconds = uptimeInSeconds % 60;
 
-                resolve(formattedUptime);
+                const formattedUptime = [];
+
+                if (days > 0) {
+                    formattedUptime.push(`${days}d`);
+                }
+                if (hours > 0) {
+                    formattedUptime.push(`${hours}h`);
+                }
+                if (minutes > 0) {
+                    formattedUptime.push(`${minutes}m`);
+                }
+                if (seconds > 0 && minutes < 1) {
+                    formattedUptime.push(`${seconds}s`);
+                }
+
+                resolve(formattedUptime.join(' '));
             } else {
                 resolve('0');
             }
@@ -152,75 +188,75 @@ async function sendStatusMessage(connection) {
     let uptime = await ServerUpTime(connection);
     let onlineCount = await getOnlinePlayersCount(connection);
     let SystemUsage = await getSystemUsage();
+    let OnlineList = await getOnlinePlayersList(connection);
 
-    if (overallStatus !== lastStatus) {
-        lastStatus = overallStatus; // Update lastStatus
+    if (botChannel) {
+        if (overallStatus === 'Server Down' && overallStatus !== lastStatus) {
 
-        if (botChannel) {
-            if (overallStatus === 'Server Down') {
-                // Delete the message and clear the saved data
-                if (lastSentMessageID) {
-                    botChannel.messages
-                        .fetch(lastSentMessageID)
-                        .then((message) => {
-                            message
-                                .delete()
-                                .then(() => {
-                                    lastSentMessageID = null; // Clear the message ID
-                                    saveLastMessageID(lastSentMessageID);
-                                    console.log('Status message deleted.');
-                                })
-                                .catch((error) => {
-                                    console.error(`Error deleting status message: ${error}`);
-                                });
-                        })
-                        .catch((error) => {
-                            console.error(`Error fetching message: ${error}`);
-                        });
-                }
-            } else {
-                const embed = new Discord.MessageEmbed()
-                    .setColor(config.color)
-                    .setTitle('Public Realm Info')
-                    .setDescription('')
-                    .addField('Status', overallStatus, true)
-                    .addField('Online', onlineCount, true)
-                    .addField('UpTime', uptime, true)
-                    .addField('System Usage', SystemUsage, true)
-                    .setTimestamp()
-                    .setFooter('Bot Status', client.user.displayAvatarURL());
-
-                if (lastSentMessageID) {
-                    botChannel.messages
-                        .fetch(lastSentMessageID)
-                        .then((message) => {
-                            message
-                                .edit(embed)
-                                .then(() => {
-                                    //console.log('Status message updated.');
-                                })
-                                .catch((error) => {
-                                    console.error(`Error updating status message: ${error}`);
-                                });
-                        })
-                        .catch((error) => {
-                            console.error(`Error fetching message: ${error}`);
-                        });
-                } else {
-                    botChannel.send(embed)
-                        .then((message) => {
-                            lastSentMessageID = message.id; // Save the message ID
-                            saveLastMessageID(lastSentMessageID);
-                            console.log('Status message sent.');
-                        })
-                        .catch((error) => {
-                            console.error(`Error sending status message: ${error}`);
-                        });
-                }
+            lastStatus = overallStatus; // Update lastStatus
+            // Delete the message and clear the saved data
+            if (lastSentMessageID) {
+                botChannel.messages
+                    .fetch(lastSentMessageID)
+                    .then((message) => {
+                        message
+                            .delete()
+                            .then(() => {
+                                lastSentMessageID = null; // Clear the message ID
+                                saveLastMessageID(lastSentMessageID);
+                                console.log('Status message deleted.');
+                            })
+                            .catch((error) => {
+                                console.error(`Error deleting status message: ${error}`);
+                            });
+                    })
+                    .catch((error) => {
+                        console.error(`Error fetching message: ${error}`);
+                    });
             }
         } else {
-            console.error(`Bot channel not found: ${config.botChannelID}`);
+            const embed = new Discord.MessageEmbed()
+                .setColor(config.color)
+                .setTitle('Public Realm Info')
+                .setDescription(config.statusMessage)
+                .addField('Status', overallStatus, true)
+                .addField('Online', onlineCount, true)
+                .addField('UpTime', uptime, true)
+                .addField('System Usage', SystemUsage, true)
+                .addField('Online List', OnlineList, false)
+                .setTimestamp()
+                .setFooter('Bot Status', client.user.displayAvatarURL());
+
+            if (lastSentMessageID) {
+                botChannel.messages
+                    .fetch(lastSentMessageID)
+                    .then((message) => {
+                        message
+                            .edit(embed)
+                            .then(() => {
+                                //console.log('Status message updated.');
+                            })
+                            .catch((error) => {
+                                console.error(`Error updating status message: ${error}`);
+                            });
+                    })
+                    .catch((error) => {
+                        console.error(`Error fetching message: ${error}`);
+                    });
+            } else {
+                botChannel.send(embed)
+                    .then((message) => {
+                        lastSentMessageID = message.id; // Save the message ID
+                        saveLastMessageID(lastSentMessageID);
+                        console.log('Status message sent.');
+                    })
+                    .catch((error) => {
+                        console.error(`Error sending status message: ${error}`);
+                    });
+            }
         }
+    } else {
+        console.error(`Bot channel not found: ${config.botChannelID}`);
     }
 }
 
