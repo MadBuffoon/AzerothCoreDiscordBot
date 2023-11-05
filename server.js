@@ -42,8 +42,16 @@ client.once('ready', () => {
 
 	const updatePresence = async () => {
 		let overallStatus = await tool.ServerStatus();
-		let uptime = await tool.ServerUpTime(connection);
-		let onlineCount = await tool.getOnlinePlayersCount(connection);
+		let uptime;
+		let onlineCount;
+		if (overallStatus === 'Server Down'){
+			uptime = 'N/A';
+			onlineCount = 'N/A';
+		}
+		else{
+			uptime = await tool.ServerUpTime(connection);
+			onlineCount = await tool.getOnlinePlayersCount(connection);
+		}
 		let SystemUsage = await tool.getSystemUsage();
 		await tool.sendStatusMessage(connection);
 

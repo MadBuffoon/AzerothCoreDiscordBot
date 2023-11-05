@@ -34,11 +34,17 @@ async function getOnlinePlayersList(connection) {
                     const playerInfo = `${row.name} (${row.level})`;
                     onlinePlayers.push(playerInfo);
                 });
-                resolve(onlinePlayers);
+
+                if (onlinePlayers.length === 0) {
+                    resolve(" "); // Return empty string
+                } else {
+                    resolve(onlinePlayers);
+                }
             }
         });
     });
 }
+
 
 
 async function ServerStatus() {
@@ -84,7 +90,7 @@ async function ServerUpTime(connection) {
         return await getServerUptime(connection);
     } catch (error) {
         console.error(error);
-        return 'Error getting server uptime.';
+        return 'N/A';
     }
 }
 
@@ -96,32 +102,36 @@ function getServerUptime(connection) {
                 reject(error);
                 return;
             }
+            try {
+                if (results.length > 0) {
+                    const uptimeInSeconds = results[0].uptime;
+                    const days = Math.floor(uptimeInSeconds / 86400);
+                    const hours = Math.floor((uptimeInSeconds % 86400) / 3600);
+                    const minutes = Math.floor((uptimeInSeconds % 3600) / 60);
+                    const seconds = uptimeInSeconds % 60;
 
-            if (results.length > 0) {
-                const uptimeInSeconds = results[0].uptime;
-                const days = Math.floor(uptimeInSeconds / 86400);
-                const hours = Math.floor((uptimeInSeconds % 86400) / 3600);
-                const minutes = Math.floor((uptimeInSeconds % 3600) / 60);
-                const seconds = uptimeInSeconds % 60;
+                    const formattedUptime = [];
 
-                const formattedUptime = [];
+                    if (days > 0) {
+                        formattedUptime.push(`${days}d`);
+                    }
+                    if (hours > 0) {
+                        formattedUptime.push(`${hours}h`);
+                    }
+                    if (minutes > 0) {
+                        formattedUptime.push(`${minutes}m`);
+                    }
+                    if (seconds > 0 && minutes === 0 && hours === 0 && days === 0) {
+                        
+                    }
 
-                if (days > 0) {
-                    formattedUptime.push(`${days}d`);
+                    resolve(formattedUptime.join(' '));
+                } else {
+                    resolve('0s');
                 }
-                if (hours > 0) {
-                    formattedUptime.push(`${hours}h`);
-                }
-                if (minutes > 0) {
-                    formattedUptime.push(`${minutes}m`);
-                }
-                if (seconds > 0 && minutes < 1) {
-                    formattedUptime.push(`${seconds}s`);
-                }
-
-                resolve(formattedUptime.join(' '));
-            } else {
-                resolve('0');
+            }
+            catch (error){
+                resolve('0s');
             }
         });
     });
@@ -185,10 +195,21 @@ let lastStatus = 'Server Up';
 async function sendStatusMessage(connection) {
     const botChannel = client.channels.cache.get(config.botChannelID);
     let overallStatus = await ServerStatus();
-    let uptime = await ServerUpTime(connection);
-    let onlineCount = await getOnlinePlayersCount(connection);
+    let uptime;
+    let onlineCount;
+    let OnlineList;
+    if (overallStatus === 'Server Down'){
+        uptime = 'N/A';
+        onlineCount = 'N/A';
+        OnlineList = 'N/A';
+    }
+    else{
+        uptime = await ServerUpTime(connection);
+        onlineCount = await getOnlinePlayersCount(connection);
+        OnlineList = await getOnlinePlayersList(connection);
+    } 
+        
     let SystemUsage = await getSystemUsage();
-    let OnlineList = await getOnlinePlayersList(connection);
 
     if (botChannel) {
         if (overallStatus === 'Server Down' && overallStatus !== lastStatus) {
@@ -218,14 +239,15 @@ async function sendStatusMessage(connection) {
             const embed = new Discord.MessageEmbed()
                 .setColor(config.color)
                 .setTitle('Public Realm Info')
-                .setDescription(config.statusMessage)
-                .addField('Status', overallStatus, true)
-                .addField('Online', onlineCount, true)
-                .addField('UpTime', uptime, true)
-                .addField('System Usage', SystemUsage, true)
-                .addField('Online List', OnlineList, false)
+                .setDescription(`${config.statusMessage2}`)
+                .addField('Status', `${overallStatus}`, true)
+                .addField('Online', ` ${onlineCount}`, true) // Use ${} for variables
+                .addField('UpTime', ` ${uptime}`, true) // Use ${} for variables
+                .addField('System Usage', `${SystemUsage}`, true)
+                .addField('Online List', `${OnlineList}`, false)
                 .setTimestamp()
                 .setFooter('Bot Status', client.user.displayAvatarURL());
+
 
             if (lastSentMessageID) {
                 botChannel.messages
